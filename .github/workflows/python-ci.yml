@@ -1,0 +1,52 @@
+name: python-ci
+
+# Reusable CI for Python repos. Caller owns triggers + concurrency. The repo's
+# test-command should self-enforce skipped==0 (e.g. ci/test-ci.sh parsing pytest
+# junitxml). PEP-668-safe: setup-python provides an isolated interpreter.
+#
+# Usage:
+#   jobs:
+#     ci:
+#       uses: codyverge/.github/.github/workflows/python-ci.yml@main
+#       with:
+#         python-version: '3.11'
+#         install-command: 'pip install -e ".[dev]"'
+#         test-command: 'bash ci/test-ci.sh'
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: '3.11'
+      install-command:
+        type: string
+        default: 'pip install -e ".[dev]" || pip install -r requirements.txt'
+      test-command:
+        description: 'must self-enforce tests>0 AND skipped==0 AND failures==0 AND errors==0'
+        type: string
+        default: 'bash ci/test-ci.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+          cache: pip
+      - run: bash -c "$INSTALL_COMMAND"
+        env:
+          INSTALL_COMMAND: ${{ inputs.install-command }}
+      - run: touch .env
+      # PIN-5 dead ports + injection-safe (commands via env, not interpolated).
+      - run: bash -c "$TEST_COMMAND"
+        env:
+          TEST_COMMAND: ${{ inputs.test-command }}
+          FLEET_DB_URL: postgres://x:x@127.0.0.1:1/none
+          OPERATIONAL_DB_URL: postgres://x:x@127.0.0.1:1/none
+          DATABASE_URL: postgres://x:x@127.0.0.1:1/none

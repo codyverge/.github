@@ -1,0 +1,63 @@
+name: node-ci
+
+# Reusable CI for Node/TS repos in the fleet. The CALLER owns triggers +
+# concurrency; this owns the boilerplate (checkout, node, deps, controlled env)
+# and runs the repo's own skip-gated `test:ci`. The skip-gate (ci/test-ci.mjs,
+# which fails on any unexpected skip) lives per-repo because each repo decides
+# WHICH suites are hermetic — this workflow just runs it under the right env.
+#
+# Usage (caller .github/workflows/ci.yml):
+#   on: { pull_request: , push: { branches: [main, master] } }
+#   concurrency:
+#     group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+#     cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+#   jobs:
+#     ci:
+#       uses: codyverge/.github/.github/workflows/node-ci.yml@main
+#       with: { node-version: '22' }
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: '22'
+      test-script:
+        description: 'package.json script to run (must self-enforce skipped==0)'
+        type: string
+        default: 'test:ci'
+      run-typecheck:
+        type: boolean
+        default: true
+      run-build:
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: touch .env
+      - if: ${{ inputs.run-typecheck }}
+        run: npm run typecheck --if-present
+      - if: ${{ inputs.run-build }}
+        run: npm run build --if-present
+      # PIN-5: dead DB ports so the hermetic tier can never reach a real/box-local
+      # DB. The repo's test-script invokes its own skip-gate (passed via env, never
+      # interpolated into the shell — injection-safe).
+      - run: npm run "$TEST_SCRIPT"
+        env:
+          TEST_SCRIPT: ${{ inputs.test-script }}
+          FLEET_DB_URL: postgres://x:x@127.0.0.1:1/none
+          OPERATIONAL_DB_URL: postgres://x:x@127.0.0.1:1/none
+          DATABASE_URL: postgres://x:x@127.0.0.1:1/none
+          MIA_DB_URL: postgres://x:x@127.0.0.1:1/none
