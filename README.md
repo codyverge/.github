@@ -23,6 +23,8 @@ on:
 concurrency:                      # caller owns triggers + concurrency
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+permissions:                      # least-privilege: cap the caller token
+  contents: read
 jobs:
   ci:
     uses: codyverge/.github/.github/workflows/node-ci.yml@main
@@ -47,8 +49,11 @@ PIN-5 dead-port env so the hermetic tier can't reach a real/box-local DB).
 
 ## Access
 
-This is a private repo on a user account; its Actions access is set to allow
-other `codyverge`-owned repos to call these workflows.
+This is a **public** repo so that repos in *any* org can call these workflows —
+GitHub blocks cross-org calls to *private* reusable workflows, and the fleet
+spans the `codyverge` and `marchonai` orgs. Public exposes only generic CI
+boilerplate (no secrets — those always come from the caller's secret store at
+runtime), keeping one maintained pipeline definition instead of per-org copies.
 
 ## Conventions baked in
 `actions/checkout@v5` · `actions/setup-node@v6` / `setup-python@v5` / `setup-go@v5`
