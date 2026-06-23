@@ -1,4 +1,4 @@
-name: next-ci
+name: web-ci
 
 # Reusable CI for Next.js sites in the fleet (e.g. marchon-ai-web, nexus-ui).
 # The gate is `next build` — which in Next 15 compiles, type-checks, runs ESLint,
