@@ -10,6 +10,7 @@ definition instead of N drifting copies (Phase 2 of the CI/CD engagement).
 | `node-ci.yml` | Node/TS (vitest, node:test) | `node-version` (22), `test-script` (`test:ci`), `run-typecheck` (true), `run-build` (false) |
 | `python-ci.yml` | Python (pytest) | `python-version` (3.11), `install-command`, `test-command` (`bash ci/test-ci.sh`) |
 | `go-ci.yml` | Go (e.g. alena-tui) | `go-version` (1.23) |
+| `next-ci.yml` | Next.js sites (build-gated, no tests) | `node-version` (22), `build-command` (`npm run build`), `build-env` (placeholder public env) |
 
 ## How to adopt (replace a repo's inline `ci.yml`)
 

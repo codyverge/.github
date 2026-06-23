@@ -1,0 +1,65 @@
+name: next-ci
+
+# Reusable CI for Next.js sites in the fleet (e.g. marchon-ai-web, nexus-ui).
+# The gate is `next build` — which in Next 15 compiles, type-checks, runs ESLint,
+# AND prerenders, so one command covers the whole pipeline. There's no test skip-gate
+# here (a build gate is binary: it compiles or it doesn't).
+#
+# Build-time env: Next inlines NEXT_PUBLIC_* at build and some pages construct
+# clients (e.g. Supabase) at prerender, so a clean CI build needs PLACEHOLDER
+# public values (never real secrets — the real ones live in the deploy platform
+# and are injected there). The caller passes them via `build-env`; they're written
+# to .env.production.local (which `next build` auto-loads) and are throwaway.
+#
+# Usage (caller .github/workflows/ci.yml):
+#   jobs:
+#     ci:
+#       uses: codyverge/.github/.github/workflows/next-ci.yml@main
+#       with:
+#         node-version: '22'
+#         build-env: |
+#           NEXT_PUBLIC_SUPABASE_URL=https://placeholder.supabase.co
+#           NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-not-a-secret
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: '22'
+      build-command:
+        type: string
+        default: 'npm run build'
+      build-env:
+        description: 'Multiline KEY=value placeholder env for the build (NEVER real secrets — public placeholders only). Written to .env.production.local.'
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+      - run: npm ci
+      # Placeholder public env so prerender can construct build-time clients.
+      # Passed via env (not interpolated into the shell) — injection-safe.
+      - if: ${{ inputs.build-env != '' }}
+        run: printf '%s\n' "$BUILD_ENV" > .env.production.local
+        env:
+          BUILD_ENV: ${{ inputs.build-env }}
+      # PIN-5: dead DB ports so a build-time client can never reach a real/box-local DB.
+      - run: $BUILD_COMMAND
+        env:
+          BUILD_COMMAND: ${{ inputs.build-command }}
+          NODE_ENV: production
+          FLEET_DB_URL: postgres://x:x@127.0.0.1:1/none
+          OPERATIONAL_DB_URL: postgres://x:x@127.0.0.1:1/none
+          DATABASE_URL: postgres://x:x@127.0.0.1:1/none
+          MIA_DB_URL: postgres://x:x@127.0.0.1:1/none
